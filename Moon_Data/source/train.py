@@ -30,7 +30,8 @@ def model_fn(model_dir):
     # Determine the device and construct the model.
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = SimpleNet(model_info['input_dim'], 
-                      model_info['hidden_dim'], 
+                      model_info['hidden_dim'],
+                      model_info['num_hidden'],
                       model_info['output_dim'])
 
     # Load the stored model parameters.
@@ -47,15 +48,13 @@ def _get_train_loader(batch_size, data_dir):
 
     # read in csv file
     train_data = pd.read_csv(os.path.join(data_dir, "train.csv"), header=None, names=None)
-
     # labels are first column
-    train_y = torch.from_numpy(train_data[[0]].values).float().squeeze()
+    train_y = torch.from_numpy(train_data[[0]].values).float()
     # features are the rest
     train_x = torch.from_numpy(train_data.drop([0], axis=1).values).float()
-
     # create dataset
     train_ds = torch.utils.data.TensorDataset(train_x, train_y)
-
+    print('returning data loader.')
     return torch.utils.data.DataLoader(train_ds, batch_size=batch_size)
 
 
@@ -103,15 +102,20 @@ def save_model(model, model_dir):
     torch.save(model.cpu().state_dict(), path)
     
 def save_model_params(model, model_dir):
-    model_info_path = os.path.join(args.model_dir, 'model_info.pth')
+    model_info_path = os.path.join(model_dir, 'model_info.pth')
     with open(model_info_path, 'wb') as f:
         model_info = {
             'input_dim': args.input_dim,
             'hidden_dim': args.hidden_dim,
-            'output_dim': args.output_dim
+            'output_dim': args.output_dim,
+            'num_hidden': args.num_hidden
         }
         torch.save(model_info, f)
 
+def header(string):
+    print('\n' + '*'*50)
+    print(string)
+    print('*'*50)
 
 ## TODO: Complete the main code
 if __name__ == '__main__':
@@ -131,16 +135,23 @@ if __name__ == '__main__':
     # Training Parameters, given
     parser.add_argument('--batch-size', type=int, default=64, metavar='N',
                         help='input batch size for training (default: 64)')
-    parser.add_argument('--epochs', type=int, default=10, metavar='N',
+    parser.add_argument('--epochs', type=int, default=150, metavar='N',
                         help='number of epochs to train (default: 10)')
     parser.add_argument('--lr', type=float, default=0.001, metavar='LR',
                         help='learning rate (default: 0.001)')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-  
-    ## TODO: Add args for the three model parameters: input_dim, hidden_dim, output_dim
     # Model parameters
-
+    parser.add_argument('--input_dim', type=int, default=2, metavar='N',
+                        help='length of initial input data (default: 2)')
+    parser.add_argument('--hidden_dim', type=int, default=10, metavar='N',
+                        help='number of nodes in hidden dimensions (default: 10)')
+    parser.add_argument('--output_dim', type=int, default=1, metavar='N',
+                        help='number of nodes in output (default: 1)')
+    parser.add_argument('--num_hidden', type=int, default=0, metavar='N',
+                        help='number of hidden layers (default: 0)')
+    parser.add_argument('--verbosity', type=int, default=0, metavar='N',
+                        help='level of verbosity (default: 0)')
     
     args = parser.parse_args()
 
@@ -154,21 +165,22 @@ if __name__ == '__main__':
     # get train loader
     train_loader = _get_train_loader(args.batch_size, args.data_dir) # data_dir from above..
     
+    model = SimpleNet(args.input_dim, 
+                      args.hidden_dim,
+                      args.num_hidden,
+                      args.output_dim)
+    if args.verbosity:
+        header('Model Architecture:')
+        print(model)
     
-    ## TODO:  Build the model by passing in the input params
-    # To get params from the parser, call args.argument_name, ex. args.epochs or ards.hidden_dim
-    # Don't forget to move your model .to(device) to move to GPU , if appropriate
-    model = None
+    optimizer = optim.SGD(model.parameters(), lr=args.lr)
+    criterion = nn.BCELoss(reduction='mean')
+    
+    if args.verbosity:
+        header('Starting model training...')
+    train(model, train_loader, args.epochs, optimizer, criterion, device)
     
     # Given: save the parameters used to construct the model
     save_model_params(model, args.model_dir)
 
-    ## TODO: Define an optimizer and loss function for training
-    optimizer = None
-    criterion = None
-
-    
-    # Trains the model (given line of code, which calls the above training function)
-    # This function *also* saves the model state dictionary
-    train(model, train_loader, args.epochs, optimizer, criterion, device)
     
