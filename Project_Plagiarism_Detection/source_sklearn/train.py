@@ -5,9 +5,7 @@ import os
 import pandas as pd
 
 from sklearn.externals import joblib
-
-## TODO: Import any additional libraries you need to define a model
-
+from sklearn.neighbors import KNeighborsClassifier as KNNC
 
 # Provided model load function
 def model_fn(model_dir):
@@ -34,15 +32,16 @@ if __name__ == '__main__':
 
     # SageMaker parameters, like the directories for training data and saving models; set automatically
     # Do not need to change
+    
     parser.add_argument('--output-data-dir', type=str, default=os.environ['SM_OUTPUT_DATA_DIR'])
     parser.add_argument('--model-dir', type=str, default=os.environ['SM_MODEL_DIR'])
     parser.add_argument('--data-dir', type=str, default=os.environ['SM_CHANNEL_TRAIN'])
-    
-    ## TODO: Add any additional arguments that you will need to pass into your model
-    
+   
+    parser.add_argument('--n_neighbors', type=int, default=5)
+   
     # args holds all passed-in arguments
     args = parser.parse_args()
-
+    
     # Read in csv training file
     training_dir = args.data_dir
     train_data = pd.read_csv(os.path.join(training_dir, "train.csv"), header=None, names=None)
@@ -50,21 +49,15 @@ if __name__ == '__main__':
     # Labels are in the first column
     train_y = train_data.iloc[:,0]
     train_x = train_data.iloc[:,1:]
-    
-    
-    ## --- Your code here --- ##
-    
 
-    ## TODO: Define a model 
-    model = None
+    # Define a model 
+    model = KNNC(n_neighbors=args.n_neighbors)
+    print('Model Defined!')
+        
+    # Train the model
+    model.fit(train_x, train_y)
+    print('Fitting complete!')
     
-    
-    ## TODO: Train the model
-    
-    
-    
-    ## --- End of your code  --- ##
-    
-
     # Save the trained model
     joblib.dump(model, os.path.join(args.model_dir, "model.joblib"))
+    print('Model saved to {}'.format(os.path.join(args.model_dir, "model.joblib")))
